@@ -1,0 +1,436 @@
+
+📁 GitPush-Mini/
+
+GitPush-Mini/
+│
+├── README.md
+├── LICENSE
+├── package.json
+├── gitpush.config.json
+├── .gitignore
+│
+├── app/
+│   ├── App.js
+│   ├── navigation/
+│   │   └── AppNavigator.js
+│   ├── screens/
+│   │   ├── LoginScreen.js
+│   │   ├── UploadScreen.js
+│   │   └── RepoScreen.js
+│   └── components/
+│       └── Button.js
+│
+├── api/
+│   ├── createRepo.js
+│   ├── uploadFile.js
+│   └── authCallback.js
+│
+├── utils/
+│   ├── auth.js
+│   ├── zip.js
+│   └── github.js
+│
+└── assets/
+    ├── icon.png
+    └── splash.png
+
+
+---
+
+📄 README.md
+
+# GitPush Mini 🚀  
+The fastest way to create GitHub repositories and upload entire projects directly from your phone — in under 7 taps.
+
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Platform](https://img.shields.io/badge/platform-iOS%20%7C%20Android-lightgrey)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Status](https://img.shields.io/badge/status-active-brightgreen)
+
+## Overview
+GitPush Mini lets you:
+- Log in with GitHub OAuth
+- Create new repositories instantly
+- Upload ZIP files or folders
+- Auto-extract and auto-commit files
+- Push entire projects from your phone
+
+
+---
+
+📄 LICENSE
+
+MIT License
+
+Copyright (c) 2026 Robert Woods
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software...
+
+
+---
+
+📄 package.json
+
+{
+  "name": "gitpush-mini",
+  "version": "1.0.0",
+  "main": "app/App.js",
+  "scripts": {
+    "start": "expo start",
+    "api": "vercel dev"
+  },
+  "dependencies": {
+    "expo": "^51.0.0",
+    "react": "^18.2.0",
+    "react-native": "0.74.0",
+    "jszip": "^3.10.1"
+  }
+}
+
+
+---
+
+📄 gitpush.config.json
+
+{
+  "appName": "GitPush Mini",
+  "defaultBranch": "main",
+  "apiBaseUrl": "https://your-vercel-api-url.vercel.app/api",
+  "allowedFileTypes": ["zip", "json", "md", "js", "jsx"]
+}
+
+
+---
+
+📄 .gitignore
+
+node_modules/
+.expo/
+.expo-shared/
+dist/
+build/
+.DS_Store
+.env
+
+
+---
+
+📁 app/App.js
+
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import AppNavigator from './navigation/AppNavigator';
+
+export default function App() {
+  return (
+    <NavigationContainer>
+      <AppNavigator />
+    </NavigationContainer>
+  );
+}
+
+
+---
+
+📁 app/navigation/AppNavigator.js
+
+import React from 'react';
+import { createStackNavigator } from '@react-navigation/stack';
+
+import LoginScreen from '../screens/LoginScreen';
+import UploadScreen from '../screens/UploadScreen';
+import RepoScreen from '../screens/RepoScreen';
+
+const Stack = createStackNavigator();
+
+export default function AppNavigator() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="Upload" component={UploadScreen} />
+      <Stack.Screen name="Repo" component={RepoScreen} />
+    </Stack.Navigator>
+  );
+}
+
+
+---
+
+📁 app/screens/LoginScreen.js
+
+import React from 'react';
+import { View, Text, Button } from 'react-native';
+import { loginWithGitHub } from '../../utils/auth';
+
+export default function LoginScreen({ navigation }) {
+  async function handleLogin() {
+    const token = await loginWithGitHub();
+    if (token) navigation.navigate('Upload', { token });
+  }
+
+  return (
+    <View style={{ padding: 40 }}>
+      <Text style={{ fontSize: 32, fontWeight: 'bold' }}>
+        GitPush Mini
+      </Text>
+
+      <Button title="Login with GitHub" onPress={handleLogin} />
+    </View>
+  );
+}
+
+
+---
+
+📁 app/screens/UploadScreen.js
+
+import React, { useState } from 'react';
+import { View, Text, Button } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import { extractZip } from '../../utils/zip';
+
+export default function UploadScreen({ route, navigation }) {
+  const { token } = route.params;
+  const [files, setFiles] = useState([]);
+
+  async function pickZip() {
+    const result = await DocumentPicker.getDocumentAsync({ type: 'application/zip' });
+    if (result.assets) {
+      const extracted = await extractZip(result.assets[0].uri);
+      setFiles(extracted);
+    }
+  }
+
+  return (
+    <View style={{ padding: 40 }}>
+      <Text style={{ fontSize: 24, fontWeight: 'bold' }}>
+        Upload Project ZIP
+      </Text>
+
+      <Button title="Choose ZIP File" onPress={pickZip} />
+
+      {files.length > 0 && (
+        <Button
+          title="Continue"
+          onPress={() => navigation.navigate('Repo', { token, files })}
+        />
+      )}
+    </View>
+  );
+}
+
+
+---
+
+📁 app/screens/RepoScreen.js
+
+import React, { useState } from 'react';
+import { View, Text, TextInput, Button } from 'react-native';
+import { createRepo, uploadFiles } from '../../utils/github';
+
+export default function RepoScreen({ route }) {
+  const { token, files } = route.params;
+  const [repoName, setRepoName] = useState('');
+
+  async function handleCreate() {
+    const repo = await createRepo(token, repoName);
+    await uploadFiles(token, repoName, files);
+  }
+
+  return (
+    <View style={{ padding: 40 }}>
+      <Text style={{ fontSize: 24, fontWeight: 'bold' }}>
+        Create Repository
+      </Text>
+
+      <TextInput
+        placeholder="Repository name"
+        value={repoName}
+        onChangeText={setRepoName}
+        style={{
+          borderWidth: 1,
+          padding: 10,
+          marginVertical: 20
+        }}
+      />
+
+      <Button title="Create & Upload" onPress={handleCreate} />
+    </View>
+  );
+}
+
+
+---
+
+📁 app/components/Button.js
+
+import React from 'react';
+import { TouchableOpacity, Text } from 'react-native';
+
+export default function Button({ title, onPress }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={{
+        backgroundColor: '#000',
+        padding: 16,
+        borderRadius: 10,
+        marginVertical: 10
+      }}
+    >
+      <Text style={{ color: '#fff', textAlign: 'center', fontSize: 18 }}>
+        {title}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+
+---
+
+📁 api/createRepo.js
+
+export default async function handler(req, res) {
+  const { token, name } = req.body;
+
+  const response = await fetch("https://api.github.com/user/repos", {
+    method: "POST",
+    headers: {
+      Authorization: `token ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ name, private: false })
+  });
+
+  const data = await response.json();
+  res.status(200).json(data);
+}
+
+
+---
+
+📁 api/uploadFile.js
+
+export default async function handler(req, res) {
+  const { token, repo, path, content } = req.body;
+
+  const response = await fetch(
+    `https://api.github.com/repos/${repo}/contents/${path}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `token ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: "Upload file",
+        content: Buffer.from(content).toString("base64")
+      })
+    }
+  );
+
+  const data = await response.json();
+  res.status(200).json(data);
+}
+
+
+---
+
+📁 api/authCallback.js
+
+export default function handler(req, res) {
+  res.status(200).json({ ok: true });
+}
+
+
+---
+
+📁 utils/auth.js
+
+import * as AuthSession from 'expo-auth-session';
+
+export async function loginWithGitHub() {
+  const redirectUri = AuthSession.makeRedirectUri();
+  const authUrl = `https://github.com/login/oauth/authorize?client_id=YOUR_CLIENT_ID&scope=repo&redirect_uri=${redirectUri}`;
+
+  const result = await AuthSession.startAsync({ authUrl });
+
+  return result.params?.code || null;
+}
+
+
+---
+
+📁 utils/zip.js
+
+import JSZip from 'jszip';
+import * as FileSystem from 'expo-file-system';
+
+export async function extractZip(uri) {
+  const zipData = await FileSystem.readAsStringAsync(uri, {
+    encoding: FileSystem.EncodingType.Base64
+  });
+
+  const zip = await JSZip.loadAsync(zipData, { base64: true });
+
+  const files = [];
+
+  for (const filename of Object.keys(zip.files)) {
+    const file = zip.files[filename];
+    if (!file.dir) {
+      const content = await file.async("string");
+      files.push({ path: filename, content });
+    }
+  }
+
+  return files;
+}
+
+
+---
+
+📁 utils/github.js
+
+export async function createRepo(token, name) {
+  const response = await fetch("https://api.github.com/user/repos", {
+    method: "POST",
+    headers: {
+      Authorization: `token ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ name })
+  });
+
+  return response.json();
+}
+
+export async function uploadFiles(token, repoName, files) {
+  for (const file of files) {
+    await fetch(
+      `https://api.github.com/repos/YOUR_GITHUB_USERNAME/${repoName}/contents/${file.path}`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `token ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          message: "Upload file",
+          content: Buffer.from(file.content).toString("base64")
+        })
+      }
+    );
+  }
+}
+
+
+---
+
+📁 assets/
+
+assets/
+├── icon.png      (placeholder)
+└── splash.png    (placeholder)
+
+
